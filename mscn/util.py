@@ -120,38 +120,147 @@ def encode_samples(tables, samples, table2vec):
             # Append table one-hot vector
             sample_vec.append(table2vec[table])
             # Append bit vector
-            sample_vec.append(samples[i][j])
-            sample_vec = np.hstack(sample_vec)
+            if len(samples) > 0:
+                sample_vec.append(samples[i][j])
+                sample_vec = np.hstack(sample_vec)
             samples_enc[i].append(sample_vec)
     return samples_enc
 
 
-def encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join2vec):
+# def encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join2vec):
+#     predicates_enc = []
+#     joins_enc = []
+#     for i, query in enumerate(predicates):
+#         predicates_enc.append(list())
+#         joins_enc.append(list())
+#         for predicate in query:
+#             if len(predicate) == 3:
+#                 # Proper predicate
+#                 column = predicate[0]
+#                 operator = predicate[1]
+#                 val = predicate[2]
+#                 norm_val = normalize_data(val, column, column_min_max_vals)
+
+#                 pred_vec = []
+#                 pred_vec.append(column2vec[column])
+#                 pred_vec.append(op2vec[operator])
+#                 pred_vec.append(norm_val)
+#                 pred_vec = np.hstack(pred_vec)
+#             else:
+#                 pred_vec = np.zeros((len(column2vec) + len(op2vec) + 1))
+
+#             predicates_enc[i].append(pred_vec)
+
+#         for predicate in joins[i]:
+#             # Join instruction
+#             join_vec = join2vec[predicate]
+#             joins_enc[i].append(join_vec)
+#     return predicates_enc, joins_enc
+
+def encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join2vec, num_buckets):
     predicates_enc = []
     joins_enc = []
     for i, query in enumerate(predicates):
         predicates_enc.append(list())
         joins_enc.append(list())
-        for predicate in query:
-            if len(predicate) == 3:
-                # Proper predicate
-                column = predicate[0]
-                operator = predicate[1]
-                val = predicate[2]
-                norm_val = normalize_data(val, column, column_min_max_vals)
-
-                pred_vec = []
-                pred_vec.append(column2vec[column])
-                pred_vec.append(op2vec[operator])
-                pred_vec.append(norm_val)
-                pred_vec = np.hstack(pred_vec)
-            else:
-                pred_vec = np.zeros((len(column2vec) + len(op2vec) + 1))
-
-            predicates_enc[i].append(pred_vec)
+        
+        reduced_min_max = {k:v for k,v in column_min_max_vals.items() if k in column2vec.keys()}
+        pred_vec = vectorize_attribute_domains_no_disjunctions(query, reduced_min_max, num_buckets, column2vec)
+        predicates_enc[i] = pred_vec
 
         for predicate in joins[i]:
             # Join instruction
             join_vec = join2vec[predicate]
             joins_enc[i].append(join_vec)
     return predicates_enc, joins_enc
+
+
+def vectorize_attribute_domains_no_disjunctions(predicates, min_max, max_bucket_count, column2vec):
+    feature_vectors, atomar_buckets, bounds, not_values = prepare_data_structures(min_max, max_bucket_count)
+
+    for exp in predicates:
+        if len(exp) == 3:  
+            attr, op, val = exp
+
+            val = min(max(min_max[attr][0], float(val)), min_max[attr][1])
+            attr_feature_vec = feature_vectors[attr]
+            domainrange = min_max[attr][1] - min_max[attr][0] + 1
+            positionval = val - min_max[attr][0]
+            # k = positionval / domainrange in [0,1), floor(k * len(vector)) gives number [0, len(vector)-1]
+            val_bucket_idx = int(float(positionval) / domainrange * len(feature_vectors[attr]))
+            add_simplepred_to_featurevec(attr_feature_vec, val_bucket_idx, attr, op, val, 
+                                        min_max, atomar_buckets, bounds, not_values)
+
+    attributes = min_max.keys()
+    for attr in attributes:
+        # set covered domain ratio
+        domainrange = min_max[attr][1] - min_max[attr][0]
+        queryrange = bounds[attr][1] - bounds[attr][0]
+        notsum = sum( [1 for x in not_values[attr] if bounds[attr][0] <= x <= bounds[attr][1]])
+        queryrange = max(queryrange - notsum,  0)
+        feature_vectors[attr][-1] = queryrange / domainrange
+        feature_vectors[attr] = np.concatenate((column2vec[attr], feature_vectors[attr])) # add column reference to identify pred
+
+    #feature_vectors = list(sorted(feature_vectors.items(), key=lambda x: x[0])) # sort to keep order of predicates the same?
+    #totalfeaturevec = [q[1] for q in feature_vectors]
+    totalfeaturevec = list(feature_vectors.values())
+    #print(f"{totalfeaturevec=}")
+    return totalfeaturevec
+
+#helper function
+def add_simplepred_to_featurevec(attr_feature_vec, val_bucket_idx, attr, op, val, min_max, atomar_buckets, bounds, not_values):
+    if op == "=" or op == "IS":
+        if attr_feature_vec[val_bucket_idx] == 1:
+            attr_feature_vec[val_bucket_idx] = 1 if atomar_buckets[attr] else 0.5
+        attr_feature_vec[0 : val_bucket_idx] = 0
+        attr_feature_vec[val_bucket_idx+1 : -1] = 0
+        bounds[attr][0] = val
+        bounds[attr][1] = val+1
+    elif op == ">":
+        if attr_feature_vec[val_bucket_idx] == 1:
+            attr_feature_vec[val_bucket_idx] = 0 if atomar_buckets[attr] else 0.5
+        attr_feature_vec[0 : val_bucket_idx] = 0
+        bounds[attr][0] = max(bounds[attr][0], min(val+1, min_max[attr][1]))
+    elif op == "<":
+        if attr_feature_vec[val_bucket_idx] == 1:
+            attr_feature_vec[val_bucket_idx] = 1 if atomar_buckets[attr] else 0.5
+        attr_feature_vec[val_bucket_idx+1 : -1] = 0
+        bounds[attr][1] = min(bounds[attr][1], max(val-1, min_max[attr][0]))
+    elif op == "<=":
+        if attr_feature_vec[val_bucket_idx] == 1:
+            attr_feature_vec[val_bucket_idx] = 1 if atomar_buckets[attr] else 0.5
+        attr_feature_vec[val_bucket_idx+1 : -1] = 0
+        bounds[attr][1] = min(bounds[attr][1], val)
+    elif op == ">=":
+        if attr_feature_vec[val_bucket_idx] == 1:
+            attr_feature_vec[val_bucket_idx] = 1 if atomar_buckets[attr] else 0.5
+        attr_feature_vec[0 : val_bucket_idx] = 0
+        bounds[attr][0] = max(bounds[attr][0], val)
+    elif op == "<>" or op == "!=":
+        if attr_feature_vec[val_bucket_idx] == 1:
+            attr_feature_vec[val_bucket_idx] = 0 if atomar_buckets[attr] else 0.5
+        not_values[attr].append(val)
+    else:
+        raise SystemExit("Unknown operator", op)
+    
+    return attr_feature_vec
+
+# helper function
+def prepare_data_structures(min_max, max_bucket_count):
+    feature_vectors = dict() # dict of floats by attribute
+    atomar_buckets = dict() # dict of booleans by attribute
+    not_values = dict() # dict of list by attribute
+
+    for attr, domain in min_max.items():
+        domainrange = domain[1] - domain[0]
+        if max_bucket_count < domainrange:
+            bucket_count = max_bucket_count
+            atomar_buckets[attr] = False
+        else:
+            bucket_count = max_bucket_count #domainrange !!! equi?
+            atomar_buckets[attr] = True
+        feature_vectors[attr] = np.ones(int(bucket_count) + 1) # last one is for covered ratio
+        bounds = {attr : list(vals) for attr, vals in min_max.items()}
+        not_values[attr] = []
+
+    return feature_vectors, atomar_buckets, bounds, not_values

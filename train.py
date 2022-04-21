@@ -72,16 +72,16 @@ def print_qerror(preds_unnorm, labels_unnorm):
     print("Mean: {}".format(np.mean(qerror)))
 
 
-def train_and_predict(workload_name, num_queries, num_epochs, batch_size, hid_units, cuda):
+def train_and_predict(workload_name, num_queries, num_buckets, num_samples, num_epochs, batch_size, hid_units, cuda):
     # Load training and validation data
-    num_materialized_samples = 1000
+    num_materialized_samples = num_samples
     dicts, column_min_max_vals, min_val, max_val, labels_train, labels_test, max_num_joins, max_num_predicates, train_data, test_data = get_train_datasets(
-        num_queries, num_materialized_samples)
+        num_queries, num_materialized_samples, num_buckets)
     table2vec, column2vec, op2vec, join2vec = dicts
 
     # Train model
     sample_feats = len(table2vec) + num_materialized_samples
-    predicate_feats = len(column2vec) + len(op2vec) + 1
+    predicate_feats = num_buckets + 1 + len(column2vec) #len(column2vec) + len(op2vec) + 1
     join_feats = len(join2vec)
 
     model = SetConv(sample_feats, predicate_feats, join_feats, hid_units)
@@ -147,7 +147,7 @@ def train_and_predict(workload_name, num_queries, num_epochs, batch_size, hid_un
 
     # Get feature encoding and proper normalization
     samples_test = encode_samples(tables, samples, table2vec)
-    predicates_test, joins_test = encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join2vec)
+    predicates_test, joins_test = encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join2vec, num_buckets)
     labels_test, _, _ = normalize_labels(label, min_val, max_val)
 
     print("Number of test samples: {}".format(len(labels_test)))
@@ -181,12 +181,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("testset", help="synthetic, scale, or job-light")
     parser.add_argument("--queries", help="number of training queries (default: 10000)", type=int, default=10000)
+    parser.add_argument("--buckets", help="number of buckets (default: 8)", type=int, default=8)
+    parser.add_argument("--samples", help="number of materialized samples (default: 1000)", type=int, default=1000)
     parser.add_argument("--epochs", help="number of epochs (default: 10)", type=int, default=10)
     parser.add_argument("--batch", help="batch size (default: 1024)", type=int, default=1024)
     parser.add_argument("--hid", help="number of hidden units (default: 256)", type=int, default=256)
-    parser.add_argument("--cuda", help="use CUDA", action="store_true")
+    parser.add_argument("--cuda", help="use CUDA", action="store_true", default=False)
     args = parser.parse_args()
-    train_and_predict(args.testset, args.queries, args.epochs, args.batch, args.hid, args.cuda)
+    train_and_predict(args.testset, 100000, 32, 0, 100, args.batch, args.hid, args.cuda)
 
 
 if __name__ == "__main__":

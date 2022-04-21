@@ -26,23 +26,24 @@ def load_data(file_name, num_materialized_samples):
     print("Loaded queries")
 
     # Load bitmaps
-    num_bytes_per_bitmap = int((num_materialized_samples + 7) >> 3)
-    with open(file_name + ".bitmaps", 'rb') as f:
-        for i in range(len(tables)):
-            four_bytes = f.read(4)
-            if not four_bytes:
-                print("Error while reading 'four_bytes'")
-                exit(1)
-            num_bitmaps_curr_query = int.from_bytes(four_bytes, byteorder='little')
-            bitmaps = np.empty((num_bitmaps_curr_query, num_bytes_per_bitmap * 8), dtype=np.uint8)
-            for j in range(num_bitmaps_curr_query):
-                # Read bitmap
-                bitmap_bytes = f.read(num_bytes_per_bitmap)
-                if not bitmap_bytes:
-                    print("Error while reading 'bitmap_bytes'")
+    if num_materialized_samples > 0:
+        num_bytes_per_bitmap = int((num_materialized_samples + 7) >> 3)
+        with open(file_name + ".bitmaps", 'rb') as f:
+            for i in range(len(tables)):
+                four_bytes = f.read(4)
+                if not four_bytes:
+                    print("Error while reading 'four_bytes'")
                     exit(1)
-                bitmaps[j] = np.unpackbits(np.frombuffer(bitmap_bytes, dtype=np.uint8))
-            samples.append(bitmaps)
+                num_bitmaps_curr_query = int.from_bytes(four_bytes, byteorder='little')
+                bitmaps = np.empty((num_bitmaps_curr_query, num_bytes_per_bitmap * 8), dtype=np.uint8)
+                for j in range(num_bitmaps_curr_query):
+                    # Read bitmap
+                    bitmap_bytes = f.read(num_bytes_per_bitmap)
+                    if not bitmap_bytes:
+                        print("Error while reading 'bitmap_bytes'")
+                        exit(1)
+                    bitmaps[j] = np.unpackbits(np.frombuffer(bitmap_bytes, dtype=np.uint8))
+                samples.append(bitmaps)
     print("Loaded bitmaps")
 
     # Split predicates
@@ -51,7 +52,7 @@ def load_data(file_name, num_materialized_samples):
     return joins, predicates, tables, samples, label
 
 
-def load_and_encode_train_data(num_queries, num_materialized_samples):
+def load_and_encode_train_data(num_queries, num_materialized_samples, num_buckets):
     file_name_queries = "data/train"
     file_name_column_min_max_vals = "data/column_min_max_vals.csv"
 
@@ -84,7 +85,7 @@ def load_and_encode_train_data(num_queries, num_materialized_samples):
 
     # Get feature encoding and proper normalization
     samples_enc = encode_samples(tables, samples, table2vec)
-    predicates_enc, joins_enc = encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join2vec)
+    predicates_enc, joins_enc = encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join2vec, num_buckets)
     label_norm, min_val, max_val = normalize_labels(label)
 
     # Split in training and validation samples
@@ -167,9 +168,9 @@ def make_dataset(samples, predicates, joins, labels, max_num_joins, max_num_pred
                                  predicate_masks, join_masks)
 
 
-def get_train_datasets(num_queries, num_materialized_samples):
+def get_train_datasets(num_queries, num_materialized_samples, num_buckets):
     dicts, column_min_max_vals, min_val, max_val, labels_train, labels_test, max_num_joins, max_num_predicates, train_data, test_data = load_and_encode_train_data(
-        num_queries, num_materialized_samples)
+        num_queries, num_materialized_samples, num_buckets)
     train_dataset = make_dataset(*train_data, labels=labels_train, max_num_joins=max_num_joins,
                                  max_num_predicates=max_num_predicates)
     print("Created TensorDataset for training data")
