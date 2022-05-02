@@ -161,17 +161,6 @@ def encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join
     predicates_enc = []
     joins_enc = []
 
-    op2vec = {
-        "=": [0,1,0],
-        ">": [1,0,0],
-        ">=": [1,1,0],
-        "<": [0,0,1],
-        "<=": [0,1,1],
-        "<>": [1,0,1],
-        "IS": [0,1,0],
-        "": [0,0,0]
-    }
-
     for i, query in enumerate(predicates):
         predicates_enc.append(list())
         joins_enc.append(list())
@@ -190,7 +179,7 @@ def encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join
 
 def vectorize_query_range(predicates, min_max, column2vec, op2vec):
     #total_columns = len(min_max)
-    totalfeaturevec = list()#np.zeros(total_columns*6)
+    totalfeaturevec = list()
     
     #collect bounds
     bounds = dict()
@@ -201,21 +190,21 @@ def vectorize_query_range(predicates, min_max, column2vec, op2vec):
                 bounds[exp[0]] = list()
             bounds[exp[0]].append(exp[1:])
         else:
-            return [np.zeros(len(column2vec) + 8)]
+            return [np.zeros(len(column2vec) + 2*len(op2vec)+2)]
     
     for pred, limits in bounds.items():
         # extend incomplete bounds and single bounds <>, =
-        # if len(limits) < 2:
-        #     if limits[0][0] == "<>" or limits[0][0] == "=":
-        #         limits.append(limits[0])
-        #     elif ">" in limits[0][0]:
-        #         limits.append(["<=", min_max[pred][1]])
-        #     elif "<" in limits[0][0]:
-        #         limits.insert(0, [">=", min_max[pred][0]])
+        if len(limits) < 2:
+            if limits[0][0] == "<>" or limits[0][0] == "=":
+                limits.append(limits[0])
+            elif ">" in limits[0][0]:
+                limits.append(["<", min_max[pred][0]]) # min_max[pred][1]
+            elif "<" in limits[0][0]:
+                limits.insert(0, [">", min_max[pred][0]])
         
-        vector = np.zeros(8)
+        vector = np.zeros(2*len(op2vec)+2)
         offset = 0
-        # only upper and lower -> offset = 0 then offset = 3
+        # only upper and lower -> offset = 0 then offset = 4
         # limits[:2] contains lower and upper bound (limit[2:] contains <> constraints)
         #idx = list(sorted(min_max.keys())).index(pred)
         for op, bound in limits[:2]:
