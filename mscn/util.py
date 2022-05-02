@@ -160,12 +160,25 @@ def encode_samples(tables, samples, table2vec):
 def encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join2vec, num_buckets):
     predicates_enc = []
     joins_enc = []
+
+    op2vec = {
+        "=": [0,1,0],
+        ">": [1,0,0],
+        ">=": [1,1,0],
+        "<": [0,0,1],
+        "<=": [0,1,1],
+        "<>": [1,0,1],
+        "IS": [0,1,0],
+        "": [0,0,0]
+    }
+
     for i, query in enumerate(predicates):
         predicates_enc.append(list())
         joins_enc.append(list())
         
-        reduced_min_max = {k:v for k,v in column_min_max_vals.items() if k in column2vec.keys()}
-        pred_vec = vectorize_attribute_domains_no_disjunctions(query, reduced_min_max, num_buckets, column2vec)
+        #reduced_min_max = {k:v for k,v in column_min_max_vals.items() if k in column2vec.keys()}
+        #pred_vec = vectorize_attribute_domains_no_disjunctions(query, reduced_min_max, num_buckets, column2vec)
+        pred_vec = vectorize_query_range(query, column_min_max_vals, column2vec, op2vec)
         predicates_enc[i] = pred_vec
 
         for predicate in joins[i]:
@@ -175,12 +188,59 @@ def encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join
     return predicates_enc, joins_enc
 
 
+def vectorize_query_range(predicates, min_max, column2vec, op2vec):
+    #total_columns = len(min_max)
+    totalfeaturevec = list()#np.zeros(total_columns*6)
+    
+    #collect bounds
+    bounds = dict()
+    for exp in predicates:
+        if len(exp) == 3: # proper predicate
+            exp[-1] = min(max(min_max[exp[0]][0], float(exp[-1])), min_max[exp[0]][1])
+            if exp[0] not in bounds.keys():
+                bounds[exp[0]] = list()
+            bounds[exp[0]].append(exp[1:])
+        else:
+            return [np.zeros(len(column2vec) + 8)]
+    
+    for pred, limits in bounds.items():
+        # extend incomplete bounds and single bounds <>, =
+        # if len(limits) < 2:
+        #     if limits[0][0] == "<>" or limits[0][0] == "=":
+        #         limits.append(limits[0])
+        #     elif ">" in limits[0][0]:
+        #         limits.append(["<=", min_max[pred][1]])
+        #     elif "<" in limits[0][0]:
+        #         limits.insert(0, [">=", min_max[pred][0]])
+        
+        vector = np.zeros(8)
+        offset = 0
+        # only upper and lower -> offset = 0 then offset = 3
+        # limits[:2] contains lower and upper bound (limit[2:] contains <> constraints)
+        #idx = list(sorted(min_max.keys())).index(pred)
+        for op, bound in limits[:2]:
+            vector[offset:offset+3] = op2vec[op]
+            if bound is None:
+                vector[offset+3] = 0
+            else:
+                vector[offset+3] = (float(bound)-min_max[pred][0])/(min_max[pred][1]-min_max[pred][0])
+            
+            offset += 4
+
+        totalfeaturevec.append(np.concatenate((column2vec[pred], vector)))
+    
+    return totalfeaturevec
+
+
 def vectorize_attribute_domains_no_disjunctions(predicates, min_max, max_bucket_count, column2vec):
-    feature_vectors, atomar_buckets, bounds, not_values = prepare_data_structures(min_max, max_bucket_count)
+    _, atomar_buckets, bounds, not_values = prepare_data_structures(min_max, max_bucket_count)
+    feature_vectors = dict()
 
     for exp in predicates:
         if len(exp) == 3:  
             attr, op, val = exp
+            if attr not in feature_vectors.keys():
+                feature_vectors[attr] = np.ones(int(max_bucket_count) + 1)
 
             val = min(max(min_max[attr][0], float(val)), min_max[attr][1])
             attr_feature_vec = feature_vectors[attr]
@@ -191,8 +251,7 @@ def vectorize_attribute_domains_no_disjunctions(predicates, min_max, max_bucket_
             add_simplepred_to_featurevec(attr_feature_vec, val_bucket_idx, attr, op, val, 
                                         min_max, atomar_buckets, bounds, not_values)
 
-    attributes = min_max.keys()
-    for attr in attributes:
+    for attr in feature_vectors.keys():
         # set covered domain ratio
         domainrange = min_max[attr][1] - min_max[attr][0]
         queryrange = bounds[attr][1] - bounds[attr][0]
@@ -201,9 +260,11 @@ def vectorize_attribute_domains_no_disjunctions(predicates, min_max, max_bucket_
         feature_vectors[attr][-1] = queryrange / domainrange
         feature_vectors[attr] = np.concatenate((column2vec[attr], feature_vectors[attr])) # add column reference to identify pred
 
-    #feature_vectors = list(sorted(feature_vectors.items(), key=lambda x: x[0])) # sort to keep order of predicates the same?
-    #totalfeaturevec = [q[1] for q in feature_vectors]
-    totalfeaturevec = list(feature_vectors.values())
+    # query without any predicates
+    if len(feature_vectors) == 0:
+        totalfeaturevec = [np.zeros(len(column2vec) + max_bucket_count + 1)]
+    else:
+        totalfeaturevec = list(feature_vectors.values())
     #print(f"{totalfeaturevec=}")
     return totalfeaturevec
 
@@ -254,12 +315,10 @@ def prepare_data_structures(min_max, max_bucket_count):
     for attr, domain in min_max.items():
         domainrange = domain[1] - domain[0]
         if max_bucket_count < domainrange:
-            bucket_count = max_bucket_count
             atomar_buckets[attr] = False
         else:
-            bucket_count = max_bucket_count #domainrange !!! equi?
             atomar_buckets[attr] = True
-        feature_vectors[attr] = np.ones(int(bucket_count) + 1) # last one is for covered ratio
+        feature_vectors[attr] = np.ones(int(max_bucket_count) + 1) # last one is for covered ratio
         bounds = {attr : list(vals) for attr, vals in min_max.items()}
         not_values[attr] = []
 
