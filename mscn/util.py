@@ -198,7 +198,7 @@ def vectorize_query_range(predicates, min_max, column2vec, op2vec):
             if limits[0][0] == "<>" or limits[0][0] == "=":
                 limits.append(limits[0])
             elif ">" in limits[0][0]:
-                limits.append(["<", min_max[pred][0]]) # min_max[pred][1]
+                limits.append(["<", min_max[pred][1]])
             elif "<" in limits[0][0]:
                 limits.insert(0, [">", min_max[pred][0]])
         
@@ -212,7 +212,7 @@ def vectorize_query_range(predicates, min_max, column2vec, op2vec):
             if bound is None:
                 vector[offset+3] = 0
             else:
-                vector[offset+3] = (float(bound)-min_max[pred][0])/(min_max[pred][1]-min_max[pred][0])
+                vector[offset+3] = normalize_data(bound, pred, min_max)
             
             offset += 4
 
