@@ -81,8 +81,8 @@ def train_and_predict(workload_name, num_queries, num_buckets, num_samples, num_
 
     # Train model
     sample_feats = len(table2vec) + num_materialized_samples
-    #predicate_feats = num_buckets + 1 + len(column2vec) #len(column2vec) + len(op2vec) + 1
-    predicate_feats = len(column2vec) + 2*len(op2vec)+2
+    predicate_feats = num_buckets + 1 + len(column2vec) #len(column2vec) + len(op2vec) + 1
+    #predicate_feats = len(column2vec) + 2*len(op2vec)+2
     join_feats = len(join2vec)
 
     model = SetConv(sample_feats, predicate_feats, join_feats, hid_units)
@@ -171,7 +171,7 @@ def train_and_predict(workload_name, num_queries, num_buckets, num_samples, num_
     print_qerror(preds_test_unnorm, label)
 
     # Write predictions
-    file_name = "results/predictions_" + workload_name + ".csv"
+    file_name = "results/predictions_" + workload_name + str(int(time.time())) + ".csv"
     os.makedirs(os.path.dirname(file_name), exist_ok=True)
     with open(file_name, "w") as f:
         for i in range(len(preds_test_unnorm)):
@@ -189,7 +189,7 @@ def main():
     parser.add_argument("--hid", help="number of hidden units (default: 256)", type=int, default=256)
     parser.add_argument("--cuda", help="use CUDA", action="store_true", default=False)
     args = parser.parse_args()
-    train_and_predict(args.testset, 100000, args.buckets, 0, 100, args.batch, args.hid, args.cuda)
+    train_and_predict(args.testset, 100000, args.buckets, args.samples, 100, args.batch, args.hid, args.cuda)
 
 
 if __name__ == "__main__":

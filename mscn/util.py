@@ -165,9 +165,9 @@ def encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join
         predicates_enc.append(list())
         joins_enc.append(list())
         
-        #reduced_min_max = {k:v for k,v in column_min_max_vals.items() if k in column2vec.keys()}
-        #pred_vec = vectorize_attribute_domains_no_disjunctions(query, reduced_min_max, num_buckets, column2vec)
-        pred_vec = vectorize_query_range(query, column_min_max_vals, column2vec, op2vec)
+        reduced_min_max = {k:v for k,v in column_min_max_vals.items() if k in column2vec.keys()}
+        pred_vec = vectorize_attribute_domains_no_disjunctions(query, reduced_min_max, num_buckets, column2vec)
+        #pred_vec = vectorize_query_range(query, column_min_max_vals, column2vec, op2vec)
         predicates_enc[i] = pred_vec
 
         for predicate in joins[i]:
