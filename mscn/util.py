@@ -157,7 +157,7 @@ def encode_samples(tables, samples, table2vec):
 #             joins_enc[i].append(join_vec)
 #     return predicates_enc, joins_enc
 
-def encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join2vec, num_buckets):
+def encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join2vec, featurization, num_buckets):
     predicates_enc = []
     joins_enc = []
 
@@ -165,9 +165,13 @@ def encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join
         predicates_enc.append(list())
         joins_enc.append(list())
         
-        reduced_min_max = {k:v for k,v in column_min_max_vals.items() if k in column2vec.keys()}
-        pred_vec = vectorize_attribute_domains_no_disjunctions(query, reduced_min_max, num_buckets, column2vec)
-        #pred_vec = vectorize_query_range(query, column_min_max_vals, column2vec, op2vec)
+        if featurization == "range":
+            pred_vec = vectorize_query_range(query, column_min_max_vals, column2vec, op2vec)
+        elif featurization == "conj":
+            reduced_min_max = {k:v for k,v in column_min_max_vals.items() if k in column2vec.keys()}
+            pred_vec = vectorize_attribute_domains_no_disjunctions(query, reduced_min_max, num_buckets, column2vec)
+        else:
+            pred_vec = vectorize_mscn(query, column_min_max_vals, column2vec, op2vec)
         predicates_enc[i] = pred_vec
 
         for predicate in joins[i]:
@@ -216,7 +220,7 @@ def vectorize_query_range(predicates, min_max, column2vec, op2vec):
             
             offset += 4
 
-        totalfeaturevec.append(np.concatenate((column2vec[pred], vector)))
+        totalfeaturevec.append(np.concatenate((column2vec[pred], vector), dtype=np.float32))
     
     return totalfeaturevec
 
@@ -247,7 +251,7 @@ def vectorize_attribute_domains_no_disjunctions(predicates, min_max, max_bucket_
         notsum = sum( [1 for x in not_values[attr] if bounds[attr][0] <= x <= bounds[attr][1]])
         queryrange = max(queryrange - notsum,  0)
         feature_vectors[attr][-1] = queryrange / domainrange
-        feature_vectors[attr] = np.concatenate((column2vec[attr], feature_vectors[attr])) # add column reference to identify pred
+        feature_vectors[attr] = np.concatenate((column2vec[attr], feature_vectors[attr]), dtype=np.float32) # add column reference to identify pred
 
     # query without any predicates
     if len(feature_vectors) == 0:
@@ -312,3 +316,26 @@ def prepare_data_structures(min_max, max_bucket_count):
         not_values[attr] = []
 
     return feature_vectors, atomar_buckets, bounds, not_values
+
+
+def vectorize_mscn(query, column_min_max_vals, column2vec, op2vec):
+    predicates_enc = []
+    for predicate in query:
+        if len(predicate) == 3:
+            # Proper predicate
+            column = predicate[0]
+            operator = predicate[1]
+            val = predicate[2]
+            norm_val = normalize_data(val, column, column_min_max_vals)
+
+            pred_vec = []
+            pred_vec.append(column2vec[column])
+            pred_vec.append(op2vec[operator])
+            pred_vec.append(norm_val)
+            pred_vec = np.hstack(pred_vec)
+        else:
+            pred_vec = np.zeros((len(column2vec) + len(op2vec) + 1))
+
+        predicates_enc.append(pred_vec)
+
+    return predicates_enc

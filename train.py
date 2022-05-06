@@ -72,18 +72,24 @@ def print_qerror(preds_unnorm, labels_unnorm):
     print("Mean: {}".format(np.mean(qerror)))
 
 
-def train_and_predict(workload_name, num_queries, num_buckets, num_samples, num_epochs, batch_size, hid_units, cuda):
+def train_and_predict(workload_name, featurization, num_queries, num_buckets, num_samples, num_epochs, batch_size, hid_units, cuda):
     # Load training and validation data
     num_materialized_samples = num_samples
     dicts, column_min_max_vals, min_val, max_val, labels_train, labels_test, max_num_joins, max_num_predicates, train_data, test_data = get_train_datasets(
-        num_queries, num_materialized_samples, num_buckets)
+        num_queries, num_materialized_samples, featurization, num_buckets)
     table2vec, column2vec, op2vec, join2vec = dicts
 
     # Train model
     sample_feats = len(table2vec) + num_materialized_samples
-    predicate_feats = num_buckets + 1 + len(column2vec) #len(column2vec) + len(op2vec) + 1
-    #predicate_feats = len(column2vec) + 2*len(op2vec)+2
     join_feats = len(join2vec)
+
+    if featurization == "range":
+        predicate_feats = len(column2vec) + 2*len(op2vec)+2
+    elif featurization == "conj":
+        predicate_feats = num_buckets + 1 + len(column2vec) 
+    else:
+        predicate_feats = len(column2vec) + len(op2vec) + 1
+    
 
     model = SetConv(sample_feats, predicate_feats, join_feats, hid_units)
 
@@ -148,7 +154,7 @@ def train_and_predict(workload_name, num_queries, num_buckets, num_samples, num_
 
     # Get feature encoding and proper normalization
     samples_test = encode_samples(tables, samples, table2vec)
-    predicates_test, joins_test = encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join2vec, num_buckets)
+    predicates_test, joins_test = encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join2vec, featurization, num_buckets)
     labels_test, _, _ = normalize_labels(label, min_val, max_val)
 
     print("Number of test samples: {}".format(len(labels_test)))
@@ -181,6 +187,7 @@ def train_and_predict(workload_name, num_queries, num_buckets, num_samples, num_
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("testset", help="synthetic, scale, or job-light")
+    parser.add_argument("--feat", help="featurization: mscn, range, or conj", type=str, default="mscn")
     parser.add_argument("--queries", help="number of training queries (default: 10000)", type=int, default=10000)
     parser.add_argument("--buckets", help="number of buckets (default: 32)", type=int, default=32)
     parser.add_argument("--samples", help="number of materialized samples (default: 1000)", type=int, default=1000)
@@ -189,7 +196,7 @@ def main():
     parser.add_argument("--hid", help="number of hidden units (default: 256)", type=int, default=256)
     parser.add_argument("--cuda", help="use CUDA", action="store_true", default=False)
     args = parser.parse_args()
-    train_and_predict(args.testset, 100000, args.buckets, args.samples, 100, args.batch, args.hid, args.cuda)
+    train_and_predict(args.testset, args.feat, 100000, args.buckets, args.samples, 100, args.batch, args.hid, args.cuda)
 
 
 if __name__ == "__main__":

@@ -52,7 +52,7 @@ def load_data(file_name, num_materialized_samples):
     return joins, predicates, tables, samples, label
 
 
-def load_and_encode_train_data(num_queries, num_materialized_samples, num_buckets):
+def load_and_encode_train_data(num_queries, num_materialized_samples, featurization, num_buckets):
     file_name_queries = "data/train"
     file_name_column_min_max_vals = "data/column_min_max_vals.csv"
 
@@ -85,7 +85,7 @@ def load_and_encode_train_data(num_queries, num_materialized_samples, num_bucket
 
     # Get feature encoding and proper normalization
     samples_enc = encode_samples(tables, samples, table2vec)
-    predicates_enc, joins_enc = encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join2vec, num_buckets)
+    predicates_enc, joins_enc = encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join2vec, featurization, num_buckets)
     label_norm, min_val, max_val = normalize_labels(label)
 
     # Split in training and validation samples
@@ -168,9 +168,9 @@ def make_dataset(samples, predicates, joins, labels, max_num_joins, max_num_pred
                                  predicate_masks, join_masks)
 
 
-def get_train_datasets(num_queries, num_materialized_samples, num_buckets):
+def get_train_datasets(num_queries, num_materialized_samples, featurization, num_buckets):
     dicts, column_min_max_vals, min_val, max_val, labels_train, labels_test, max_num_joins, max_num_predicates, train_data, test_data = load_and_encode_train_data(
-        num_queries, num_materialized_samples, num_buckets)
+        num_queries, num_materialized_samples, featurization, num_buckets)
     train_dataset = make_dataset(*train_data, labels=labels_train, max_num_joins=max_num_joins,
                                  max_num_predicates=max_num_predicates)
     print("Created TensorDataset for training data")
