@@ -140,6 +140,8 @@ def train_and_predict(workload_name, featurization, num_queries, num_buckets, nu
     preds_test_unnorm = unnormalize_labels(preds_test, min_val, max_val)
     labels_test_unnorm = unnormalize_labels(labels_test, min_val, max_val)
 
+    label = labels_test_unnorm
+
     # Print metrics
     print("\nQ-Error training set:")
     print_qerror(preds_train_unnorm, labels_train_unnorm)
@@ -148,40 +150,40 @@ def train_and_predict(workload_name, featurization, num_queries, num_buckets, nu
     print_qerror(preds_test_unnorm, labels_test_unnorm)
     print("")
 
-    # Load test data
-    file_name = "workloads/" + workload_name
-    joins, predicates, tables, samples, label = load_data(file_name, num_materialized_samples)
+    # # Load test data
+    # file_name = "workloads/" + workload_name
+    # joins, predicates, tables, samples, label = load_data(file_name, num_materialized_samples)
 
-    # Get feature encoding and proper normalization
-    samples_test = encode_samples(tables, samples, table2vec)
-    predicates_test, joins_test = encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join2vec, featurization, num_buckets)
-    labels_test, _, _ = normalize_labels(label, min_val, max_val)
+    # # Get feature encoding and proper normalization
+    # samples_test = encode_samples(tables, samples, table2vec)
+    # predicates_test, joins_test = encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join2vec, featurization, num_buckets)
+    # labels_test, _, _ = normalize_labels(label, min_val, max_val)
 
-    print("Number of test samples: {}".format(len(labels_test)))
+    # print("Number of test samples: {}".format(len(labels_test)))
 
-    max_num_predicates = max([len(p) for p in predicates_test])
-    max_num_joins = max([len(j) for j in joins_test])
+    # max_num_predicates = max([len(p) for p in predicates_test])
+    # max_num_joins = max([len(j) for j in joins_test])
 
-    # Get test set predictions
-    test_data = make_dataset(samples_test, predicates_test, joins_test, labels_test, max_num_joins, max_num_predicates)
-    test_data_loader = DataLoader(test_data, batch_size=batch_size)
+    # # Get test set predictions
+    # test_data = make_dataset(samples_test, predicates_test, joins_test, labels_test, max_num_joins, max_num_predicates)
+    # test_data_loader = DataLoader(test_data, batch_size=batch_size)
 
-    preds_test, t_total = predict(model, test_data_loader, cuda)
-    print("Prediction time per test sample: {}".format(t_total / len(labels_test) * 1000))
+    # preds_test, t_total = predict(model, test_data_loader, cuda)
+    # print("Prediction time per test sample: {}".format(t_total / len(labels_test) * 1000))
 
-    # Unnormalize
-    preds_test_unnorm = unnormalize_labels(preds_test, min_val, max_val)
+    # # Unnormalize
+    # preds_test_unnorm = unnormalize_labels(preds_test, min_val, max_val)
 
-    # Print metrics
-    print("\nQ-Error " + workload_name + ":")
-    print_qerror(preds_test_unnorm, label)
+    # # Print metrics
+    # print("\nQ-Error " + workload_name + ":")
+    # print_qerror(preds_test_unnorm, label)
 
     # Write predictions
     file_name = "results/predictions_" + workload_name + str(int(time.time())) + ".csv"
     os.makedirs(os.path.dirname(file_name), exist_ok=True)
     with open(file_name, "w") as f:
         for i in range(len(preds_test_unnorm)):
-            f.write(str(preds_test_unnorm[i]) + "," + label[i] + "\n")
+            f.write(str(preds_test_unnorm[i]) + "," + str(label[i]) + "\n")
 
 
 def main():
@@ -196,7 +198,7 @@ def main():
     parser.add_argument("--hid", help="number of hidden units (default: 256)", type=int, default=256)
     parser.add_argument("--cuda", help="use CUDA", action="store_true", default=False)
     args = parser.parse_args()
-    train_and_predict(args.testset, args.feat, 100000, args.buckets, args.samples, 100, args.batch, args.hid, args.cuda)
+    train_and_predict(args.testset, args.feat, args.queries, args.buckets, args.samples, args.epochs, args.batch, args.hid, args.cuda)
 
 
 if __name__ == "__main__":

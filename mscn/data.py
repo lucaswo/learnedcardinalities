@@ -53,8 +53,8 @@ def load_data(file_name, num_materialized_samples):
 
 
 def load_and_encode_train_data(num_queries, num_materialized_samples, featurization, num_buckets):
-    file_name_queries = "data/train"
-    file_name_column_min_max_vals = "data/column_min_max_vals.csv"
+    file_name_queries = "train_forest_nosamples"#"data/train"
+    file_name_column_min_max_vals = "min_max_vals_forest.csv" #data/column_min_max_vals.csv"
 
     joins, predicates, tables, samples, label = load_data(file_name_queries, num_materialized_samples)
 
@@ -89,7 +89,7 @@ def load_and_encode_train_data(num_queries, num_materialized_samples, featurizat
     label_norm, min_val, max_val = normalize_labels(label)
 
     # Split in training and validation samples
-    num_train = int(num_queries * 0.9)
+    num_train = int(num_queries * 0.8)
     num_test = num_queries - num_train
 
     samples_train = samples_enc[:num_train]
