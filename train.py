@@ -85,7 +85,7 @@ def train_and_predict(workload_name, featurization, num_queries, num_buckets, nu
 
     if featurization == "range":
         predicate_feats = len(column2vec) + 2*len(op2vec)+2
-    elif featurization == "conj":
+    elif featurization == "conj" or featurization == "disj":
         predicate_feats = num_buckets + 1 + len(column2vec) 
     else:
         predicate_feats = len(column2vec) + len(op2vec) + 1
@@ -150,33 +150,33 @@ def train_and_predict(workload_name, featurization, num_queries, num_buckets, nu
     print_qerror(preds_test_unnorm, labels_test_unnorm)
     print("")
 
-    # # Load test data
-    # file_name = "workloads/" + workload_name
-    # joins, predicates, tables, samples, label = load_data(file_name, num_materialized_samples)
+    # Load test data
+    file_name = "workloads/" + workload_name
+    joins, predicates, tables, samples, label = load_data(file_name, num_materialized_samples, featurization)
 
-    # # Get feature encoding and proper normalization
-    # samples_test = encode_samples(tables, samples, table2vec)
-    # predicates_test, joins_test = encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join2vec, featurization, num_buckets)
-    # labels_test, _, _ = normalize_labels(label, min_val, max_val)
+    # Get feature encoding and proper normalization
+    samples_test = encode_samples(tables, samples, table2vec)
+    predicates_test, joins_test = encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join2vec, featurization, num_buckets)
+    labels_test, _, _ = normalize_labels(label, min_val, max_val)
 
-    # print("Number of test samples: {}".format(len(labels_test)))
+    print("Number of test samples: {}".format(len(labels_test)))
 
-    # max_num_predicates = max([len(p) for p in predicates_test])
-    # max_num_joins = max([len(j) for j in joins_test])
+    max_num_predicates = max([len(p) for p in predicates_test])
+    max_num_joins = max([len(j) for j in joins_test])
 
-    # # Get test set predictions
-    # test_data = make_dataset(samples_test, predicates_test, joins_test, labels_test, max_num_joins, max_num_predicates)
-    # test_data_loader = DataLoader(test_data, batch_size=batch_size)
+    # Get test set predictions
+    test_data = make_dataset(samples_test, predicates_test, joins_test, labels_test, max_num_joins, max_num_predicates)
+    test_data_loader = DataLoader(test_data, batch_size=batch_size)
 
-    # preds_test, t_total = predict(model, test_data_loader, cuda)
-    # print("Prediction time per test sample: {}".format(t_total / len(labels_test) * 1000))
+    preds_test, t_total = predict(model, test_data_loader, cuda)
+    print("Prediction time per test sample: {}".format(t_total / len(labels_test) * 1000))
 
-    # # Unnormalize
-    # preds_test_unnorm = unnormalize_labels(preds_test, min_val, max_val)
+    # Unnormalize
+    preds_test_unnorm = unnormalize_labels(preds_test, min_val, max_val)
 
-    # # Print metrics
-    # print("\nQ-Error " + workload_name + ":")
-    # print_qerror(preds_test_unnorm, label)
+    # Print metrics
+    print("\nQ-Error " + workload_name + ":")
+    print_qerror(preds_test_unnorm, label)
 
     # Write predictions
     file_name = "results/predictions_" + workload_name + str(int(time.time())) + ".csv"
@@ -189,7 +189,7 @@ def train_and_predict(workload_name, featurization, num_queries, num_buckets, nu
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("testset", help="synthetic, scale, or job-light")
-    parser.add_argument("--feat", help="featurization: mscn, range, or conj", type=str, default="mscn")
+    parser.add_argument("--feat", help="featurization: mscn, range, conj, or disj (default: mscn)", type=str, default="mscn")
     parser.add_argument("--queries", help="number of training queries (default: 10000)", type=int, default=10000)
     parser.add_argument("--buckets", help="number of buckets (default: 32)", type=int, default=32)
     parser.add_argument("--samples", help="number of materialized samples (default: 1000)", type=int, default=1000)

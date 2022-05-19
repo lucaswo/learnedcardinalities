@@ -1,3 +1,4 @@
+import re
 import numpy as np
 
 
@@ -15,7 +16,9 @@ def get_all_column_names(predicates):
         for predicate in query:
             if len(predicate) == 3:
                 column_name = predicate[0]
-                column_names.add(column_name)
+            elif len(predicate) > 3:
+                column_name = predicate.split(" ", maxsplit=1)[0]
+            column_names.add(column_name)
     return column_names
 
 
@@ -29,11 +32,15 @@ def get_all_table_names(tables):
 
 def get_all_operators(predicates):
     operators = set()
+    op_reg = re.compile(r"([!<=>]+)")
     for query in predicates:
         for predicate in query:
             if len(predicate) == 3:
                 operator = predicate[1]
                 operators.add(operator)
+            elif len(predicate) > 3:
+                operator = re.findall(op_reg, predicate)
+                operators.update(operator)
     return operators
 
 
@@ -168,8 +175,11 @@ def encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join
         if featurization == "range":
             pred_vec = vectorize_query_range(query, column_min_max_vals, column2vec, op2vec)
         elif featurization == "conj":
-            reduced_min_max = {k:v for k,v in column_min_max_vals.items() if k in column2vec.keys()}
-            pred_vec = vectorize_attribute_domains_no_disjunctions(query, reduced_min_max, num_buckets, column2vec)
+            #reduced_min_max = {k:v for k,v in column_min_max_vals.items() if k in column2vec.keys()}
+            pred_vec = vectorize_attribute_domains_no_disjunctions(query, column_min_max_vals, num_buckets, column2vec)
+        elif featurization == "disj":
+            #reduced_min_max = {k:v for k,v in column_min_max_vals.items() if k in column2vec.keys()}
+            pred_vec = vectorize_attribute_domains_complex_query(query, column_min_max_vals, num_buckets, column2vec)
         else:
             pred_vec = vectorize_mscn(query, column_min_max_vals, column2vec, op2vec)
         predicates_enc[i] = pred_vec
@@ -261,7 +271,32 @@ def vectorize_attribute_domains_no_disjunctions(predicates, min_max, max_bucket_
     #print(f"{totalfeaturevec=}")
     return totalfeaturevec
 
-#helper function
+def vectorize_attribute_domains_complex_query(predicates, min_max, max_bucket_count, column2vec):
+    _, atomar_buckets, bounds, not_values = prepare_data_structures(min_max, max_bucket_count)
+    feature_vectors = dict()
+
+    for cp in predicates:
+        #attr = cp[0]  # error. attribute name can be longer than one character
+        attr = cp.split(" ", maxsplit=1)[0]
+        disjuncts = cp.split("OR")
+
+        if attr not in feature_vectors.keys():
+            feature_vectors[attr] = np.ones(int(max_bucket_count) + 1)
+
+        mergedvec = np.zeros(len(feature_vectors[attr]))
+        for disjunct in disjuncts: # each disjunct is conjunction of simple predicates
+            dis_vec = add_compoundpred_to_featurevec(disjunct, np.copy(feature_vectors[attr]), min_max,
+                                                     atomar_buckets,
+                                                     bounds,
+                                                     not_values)
+            mergedvec = np.maximum(mergedvec, dis_vec)
+        mergedvec[-1] = sum(mergedvec[0:-1]) / (len(mergedvec)-1) # approximate covered ratio
+        feature_vectors[attr] = np.concatenate((column2vec[attr], mergedvec), dtype=np.float32)
+
+    totalfeaturevec = list(feature_vectors.values())
+    return totalfeaturevec
+
+
 def add_simplepred_to_featurevec(attr_feature_vec, val_bucket_idx, attr, op, val, min_max, atomar_buckets, bounds, not_values):
     if op == "=" or op == "IS":
         if attr_feature_vec[val_bucket_idx] == 1:
@@ -298,6 +333,23 @@ def add_simplepred_to_featurevec(attr_feature_vec, val_bucket_idx, attr, op, val
         raise SystemExit("Unknown operator", op)
     
     return attr_feature_vec
+
+def add_compoundpred_to_featurevec(simple_predicates, vec, min_max, atomar_buckets, bounds, not_values):
+    #print("simple_predicates:", simple_predicates)
+    for exp in simple_predicates.split("AND"):
+        exp = exp.strip()
+        # assert exp has form: attribute operator value
+        #print("exp:", exp)
+        attr, op, val = exp.split(" ")
+        val = min(max(min_max[attr][0], float(val)), min_max[attr][1])
+        #print("attr-op-val", attr, op, val)
+        domainrange = min_max[attr][1] - min_max[attr][0] + 1
+        positionval = val - min_max[attr][0]
+        # k = positionval / domainrange in [0,1), floor(k * len(vector)) gives number [0, len(vector)-1]
+        val_bucket_idx = int(float(positionval) / domainrange * len(vec))
+        add_simplepred_to_featurevec(vec, val_bucket_idx, attr, op, val, min_max, 
+                                     atomar_buckets, bounds, not_values)
+    return vec
 
 # helper function
 def prepare_data_structures(min_max, max_bucket_count):

@@ -5,7 +5,7 @@ from torch.utils.data import dataset
 from mscn.util import *
 
 
-def load_data(file_name, num_materialized_samples):
+def load_data(file_name, num_materialized_samples, featurization):
     joins = []
     predicates = []
     tables = []
@@ -47,16 +47,17 @@ def load_data(file_name, num_materialized_samples):
     print("Loaded bitmaps")
 
     # Split predicates
-    predicates = [list(chunks(d, 3)) for d in predicates]
+    if featurization != "disj":
+        predicates = [list(chunks(d, 3)) for d in predicates]
 
     return joins, predicates, tables, samples, label
 
 
 def load_and_encode_train_data(num_queries, num_materialized_samples, featurization, num_buckets):
-    file_name_queries = "train_forest_nosamples"#"data/train"
-    file_name_column_min_max_vals = "min_max_vals_forest.csv" #data/column_min_max_vals.csv"
+    file_name_queries = "data/train"
+    file_name_column_min_max_vals = "data/column_min_max_vals.csv"
 
-    joins, predicates, tables, samples, label = load_data(file_name_queries, num_materialized_samples)
+    joins, predicates, tables, samples, label = load_data(file_name_queries, num_materialized_samples, featurization)
 
     # Get column name dict
     column_names = get_all_column_names(predicates)
