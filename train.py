@@ -179,7 +179,7 @@ def train_and_predict(workload_name, featurization, num_queries, num_buckets, nu
     print_qerror(preds_test_unnorm, label)
 
     # Write predictions
-    file_name = "results/predictions_" + workload_name + str(int(time.time())) + ".csv"
+    file_name = "results/predictions_" + workload_name + "_" + featurization + str(int(time.time())) + ".csv"
     os.makedirs(os.path.dirname(file_name), exist_ok=True)
     with open(file_name, "w") as f:
         for i in range(len(preds_test_unnorm)):
