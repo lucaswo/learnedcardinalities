@@ -1,7 +1,7 @@
-Learned Cardinalities in PyTorch
+Enhanced Query Featurization for Cardinality Estimation
 ====
 
-PyTorch implementation of multi-set convolutional networks (MSCNs) to estimate the result sizes of SQL queries [1, 2].
+Updated PyTorch implementation of multi-set convolutional networks (MSCNs) to include and test other featurizations [1].
 
 ## Requirements
 
@@ -16,29 +16,30 @@ Example usage:
 
 ```python3 train.py synthetic```
 
-To reproduce the results in [1] use:
+To use a different featurization:
 
-```python3 train.py --queries 100000 --epochs 100 synthetic```
-
-```python3 train.py --queries 100000 --epochs 100 scale```
-
-```python3 train.py --queries 100000 --epochs 100 job-light```
+```python3 train.py --feat range --queries 100000 --epochs 100 synthetic```
 
 ## References
 
-[1] [Kipf et al., Learned Cardinalities: Estimating Correlated Joins with Deep Learning, 2018](https://arxiv.org/abs/1809.00677)
-
-[2] [Kipf et al., Estimating Cardinalities with Deep Sketches, 2019](https://arxiv.org/abs/1904.08223)
+[1] [Müller et al., Enhanced Featurization of Queries with Mixed Combinations of Predicates for ML-based Cardinality Estimation
+, 2023](https://doi.org/10.48786/edbt.2023.22)
 
 ## Cite
 
 Please cite our paper if you use this code in your own work:
 
 ```
-@article{kipf2018learned,
-  title={Learned cardinalities: Estimating correlated joins with deep learning},
-  author={Kipf, Andreas and Kipf, Thomas and Radke, Bernhard and Leis, Viktor and Boncz, Peter and Kemper, Alfons},
-  journal={arXiv preprint arXiv:1809.00677},
-  year={2018}
-}
+@inproccedings{mueller2023enhanced, 
+  doi = {10.48786/EDBT.2023.22}, 
+  url = {https://openproceedings.org/2023/conf/edbt/paper-1.pdf}, 
+  author = {M\"uller, Magnus and Woltmann, Lucas and Lehner, Wolfgang}, 
+  keywords = {Database Technology}, 
+  language = {en}, 
+  title = {{Enhanced Featurization of Queries with Mixed Combinations of Predicates for ML-based Cardinality Estimation}}, 
+  publisher = {OpenProceedings.org}, 
+  year = {2023}, 
+  booktitle = {Proceedings of the 26th International Conference on Extending Database Technology}, 
+  location = {Ioannina, Greece},
+  series = {EDBT 2023}} 
 ```
