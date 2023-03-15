@@ -20,6 +20,8 @@ To use a different featurization:
 
 ```python3 train.py --feat range --queries 100000 --epochs 100 synthetic```
 
+You can find the different featurizations in [`mscn\util.py`](https://github.com/lucaswo/queryfeaturizations/blob/master/mscn/util.py).
+
 ## References
 
 [1] [Müller et al., Enhanced Featurization of Queries with Mixed Combinations of Predicates for ML-based Cardinality Estimation

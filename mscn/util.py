@@ -190,7 +190,7 @@ def encode_data(predicates, joins, column_min_max_vals, column2vec, op2vec, join
             joins_enc[i].append(join_vec)
     return predicates_enc, joins_enc
 
-
+# Range Predicate Encoding (RPE)
 def vectorize_query_range(predicates, min_max, column2vec, op2vec):
     #total_columns = len(min_max)
     totalfeaturevec = list()
@@ -234,7 +234,7 @@ def vectorize_query_range(predicates, min_max, column2vec, op2vec):
     
     return totalfeaturevec
 
-
+# Universial Conjucntion Encoding (UCE)
 def vectorize_attribute_domains_no_disjunctions(predicates, min_max, max_bucket_count, column2vec):
     _, atomar_buckets, bounds, not_values = prepare_data_structures(min_max, max_bucket_count)
     feature_vectors = dict()
@@ -271,6 +271,7 @@ def vectorize_attribute_domains_no_disjunctions(predicates, min_max, max_bucket_
     #print(f"{totalfeaturevec=}")
     return totalfeaturevec
 
+# Limited Disjunction Encoding (LDE)
 def vectorize_attribute_domains_complex_query(predicates, min_max, max_bucket_count, column2vec):
     _, atomar_buckets, bounds, not_values = prepare_data_structures(min_max, max_bucket_count)
     feature_vectors = dict()
@@ -296,7 +297,7 @@ def vectorize_attribute_domains_complex_query(predicates, min_max, max_bucket_co
     totalfeaturevec = list(feature_vectors.values())
     return totalfeaturevec
 
-
+# helper function
 def add_simplepred_to_featurevec(attr_feature_vec, val_bucket_idx, attr, op, val, min_max, atomar_buckets, bounds, not_values):
     if op == "=" or op == "IS":
         if attr_feature_vec[val_bucket_idx] == 1:
@@ -334,6 +335,7 @@ def add_simplepred_to_featurevec(attr_feature_vec, val_bucket_idx, attr, op, val
     
     return attr_feature_vec
 
+# helper function
 def add_compoundpred_to_featurevec(simple_predicates, vec, min_max, atomar_buckets, bounds, not_values):
     #print("simple_predicates:", simple_predicates)
     for exp in simple_predicates.split("AND"):
@@ -369,7 +371,7 @@ def prepare_data_structures(min_max, max_bucket_count):
 
     return feature_vectors, atomar_buckets, bounds, not_values
 
-
+# Single Predicate Encoding (SPE)
 def vectorize_mscn(query, column_min_max_vals, column2vec, op2vec):
     predicates_enc = []
     for predicate in query:
