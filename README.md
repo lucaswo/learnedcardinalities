@@ -32,7 +32,7 @@ You can find the different featurizations in [`mscn\util.py`](https://github.com
 Please cite our paper if you use this code in your own work:
 
 ```
-@inproccedings{mueller2023enhanced, 
+@inproceedings{mueller2023enhanced, 
   doi = {10.48786/EDBT.2023.22}, 
   url = {https://openproceedings.org/2023/conf/edbt/paper-1.pdf}, 
   author = {M\"uller, Magnus and Woltmann, Lucas and Lehner, Wolfgang}, 
