@@ -1,7 +1,7 @@
 Enhanced Query Featurization for Cardinality Estimation
 ====
 
-Updated PyTorch implementation of multi-set convolutional networks (MSCNs) to include and test other featurizations [1].
+Updated implementation of multi-set convolutional networks (MSCN) to include and test other featurizations [[1]](#references).
 
 ## Requirements
 
